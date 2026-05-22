@@ -75,6 +75,7 @@ coverage_tracks = []
 coverage_track_groups = {}
 available_genes = []
 available_ge_features = []
+DEFAULT_DATASET_OBSM_KEY = "spatial_offset"
 
 
 # Functions ----------------------------------------------------------------
@@ -276,11 +277,42 @@ def process_matrix_layout(
     spatial_key: str = "spatial",
     new_obsm_key: str = "X_dataset",
     tile_spacing: float = 100.0,
+    sample_order_mode: str = "original",
+    condition_key: str = "condition",
 ):
     if sample_key not in adata_all.obs or spatial_key not in adata_all.obsm_keys():
         return
 
-    samples = list(pd.unique(adata_all.obs[sample_key]))
+    if sample_order_mode == "original":
+        samples = list(pd.unique(adata_all.obs[sample_key]))
+    elif sample_order_mode == "sample":
+        samples = sorted(adata_all.obs[sample_key].astype(str).unique().tolist())
+    elif sample_order_mode == "condition":
+        if condition_key not in adata_all.obs:
+            raise ValueError(
+                f"Cannot use sample_order_mode='condition' because "
+                f"`adata.obs['{condition_key}']` is missing."
+            )
+        obs_tmp = adata_all.obs[[sample_key, condition_key]].copy()
+        cond_per_sample = (
+            obs_tmp
+            .assign(_i=np.arange(len(obs_tmp)))
+            .sort_values("_i")
+            .groupby(sample_key, sort=False)[condition_key]
+            .first()
+        )
+        samples = (
+            cond_per_sample.reset_index()
+            .sort_values([condition_key, sample_key], kind="stable")
+            [sample_key]
+            .astype(str)
+            .tolist()
+        )
+    else:
+        raise ValueError(
+            "sample_order_mode must be one of {'original','sample','condition'}"
+        )
+
     n_samples = len(samples)
     total_positions = n_rows * n_cols
     if n_samples > total_positions:
@@ -365,7 +397,11 @@ def prepare_adata_for_viewer(adata: anndata.AnnData) -> anndata.AnnData:
         if adata.obs[group].dtype != object:
             adata.obs[group] = adata.obs[group].astype(str)
 
-    if "sample" in adata.obs and "spatial" in adata.obsm_keys() and "X_dataset" not in adata.obsm_keys():
+    if (
+        "sample" in adata.obs
+        and "spatial" in adata.obsm_keys()
+        and DEFAULT_DATASET_OBSM_KEY not in adata.obsm_keys()
+    ):
         n_samples = adata.obs["sample"].nunique()
         if n_samples > 0:
             n_cols = min(2, max(1, n_samples))
@@ -375,7 +411,8 @@ def prepare_adata_for_viewer(adata: anndata.AnnData) -> anndata.AnnData:
                 n_rows=n_rows,
                 n_cols=n_cols,
                 tile_spacing=300,
-                new_obsm_key="X_dataset",
+                new_obsm_key=DEFAULT_DATASET_OBSM_KEY,
+                sample_order_mode="sample",
             )
 
     if "cluster" not in adata.obs and "sg_leiden_merged" in adata.obs:
