@@ -11,6 +11,8 @@ if adata_rna is None and adata_ge is None:
         content="No data loaded...",
         appearance={"message_box": "warning"},
     )
+    fig = None
+    submit_widget_state()
     exit()
 
 data_options = []
