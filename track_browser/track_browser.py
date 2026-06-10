@@ -1,7 +1,7 @@
 w_text_output(content="""
 ## IGV Track Browser
 
-Browse all coverage tracks found under the selected `coverages/` directory.
+Browse coverage and Peak2Gene linkage tracks from the selected output directory.
 """)
 
 new_data_signal()
@@ -12,17 +12,12 @@ if adata_rna is None:
     )
     exit()
 
-if coverages_dir is None:
-    w_text_output(
-        content="No `coverages/` directory was found in the selected outputs.",
-        appearance={"message_box": "warning"},
-    )
-    submit_widget_state()
-    exit()
-
 if not coverage_track_groups:
     w_text_output(
-        content="No BigWig or bedGraph files were found under `coverages/`.",
+        content=(
+            "No browser tracks were found. Expected BigWig/bedGraph files "
+            "under `coverages/` or BEDPE files under `peak2gene/`."
+        ),
         appearance={"message_box": "warning"},
     )
     submit_widget_state()
@@ -44,11 +39,11 @@ default_coverage_group = (
 )
 
 coverages_group = w_select(
-    label="Coverage tracks",
+    label="Track group",
     options=coverage_group_options,
     key="coverages_group",
     default=default_coverage_group,
-    appearance={"help_text": "Select ATAC, SpatialGlue, or RNA cluster coverage tracks."},
+    appearance={"help_text": "Select coverage tracks or Peak2Gene linkage tracks."},
 )
 
 w_row(items=[coverages_genome, coverages_group])
@@ -57,7 +52,7 @@ selected_tracks = coverage_track_groups[coverages_group.value]
 
 w_text_output(
     content=(
-        f"Displaying {len(selected_tracks)} coverage track(s) from "
+        f"Displaying {len(selected_tracks)} track(s) from "
         f"`{coverages_group.value}`."
     ),
     appearance={"message_box": "info"},

@@ -5,7 +5,8 @@ w_text_output(content="""
 
 Select an `atx_glue` output directory from Latch Data. The directory should
 contain `ge_glue.h5ad`, `rna_glue.h5ad`, and optionally a `coverages/`
-subdirectory with BigWig tracks.
+subdirectory with BigWig tracks and a `peak2gene/` subdirectory with BEDPE
+linkage tracks.
 
 </details>
 """)
@@ -93,23 +94,37 @@ if data_path.value is not None:
     available_genes = list(adata_rna.var_names)
 
     coverages_dir = None
+    peak2gene_dir = None
     coverage_matches = [
         f for f in children
         if f.name() == "coverages" and f.is_dir()
     ]
+    peak2gene_matches = [
+        f for f in children
+        if f.name() == "peak2gene" and f.is_dir()
+    ]
     if coverage_matches:
         coverages_dir = coverage_matches[0]
         coverage_track_groups = collect_coverage_track_groups(coverages_dir)
-        coverage_tracks = [
-            track
-            for tracks in coverage_track_groups.values()
-            for track in tracks
-        ]
     else:
         coverage_track_groups = {}
-        coverage_tracks = []
+
+    if peak2gene_matches:
+        peak2gene_dir = peak2gene_matches[0]
+        coverage_track_groups.update(collect_peak2gene_track_groups(peak2gene_dir))
+
+    coverage_tracks = [
+        track
+        for tracks in coverage_track_groups.values()
+        for track in tracks
+    ]
+
+    if not coverage_track_groups:
         w_text_output(
-            content="No `coverages/` directory found. The IGV tab will remain empty.",
+            content=(
+                "No browser tracks were found. Expected BigWig/bedGraph files "
+                "under `coverages/` or BEDPE files under `peak2gene/`."
+            ),
             appearance={"message_box": "warning"},
         )
         submit_widget_state()
@@ -134,6 +149,7 @@ else:
     rna_path = None
     outputs_dir = None
     coverages_dir = None
+    peak2gene_dir = None
     coverage_tracks = []
     coverage_track_groups = {}
     available_genes = []

@@ -71,6 +71,7 @@ ge_path = None
 rna_path = None
 outputs_dir = None
 coverages_dir = None
+peak2gene_dir = None
 coverage_tracks = []
 coverage_track_groups = {}
 available_genes = []
@@ -515,6 +516,77 @@ def collect_coverage_track_groups(root_dir):
         group: sorted(tracks, key=lambda x: x["name"])
         for group, tracks in ordered_groups.items()
     }
+
+
+def collect_peak2gene_tracks(root_dir):
+    tracks = []
+    pending = [root_dir]
+    root_prefix = str(root_dir.path).rstrip("/") + "/"
+    while pending:
+        current = pending.pop(0)
+        try:
+            children = list(current.iterdir())
+        except Exception:
+            continue
+
+        for child in children:
+            try:
+                if child.is_dir():
+                    pending.append(child)
+                    continue
+            except Exception:
+                pass
+
+            path = str(child.path)
+            if not path.lower().endswith(".bedpe"):
+                continue
+
+            track_name = path[len(root_prefix):] if path.startswith(root_prefix) else path.split("/")[-1]
+            tracks.append({
+                "name": track_name,
+                "type": "interact",
+                "format": "bedpe",
+                "url": path,
+                "arcType": "proportional",
+                "arcOrientation": "UP",
+                "color": "rgb(33, 113, 181)",
+                "alpha": 0.35,
+                "height": 120,
+                "visibilityWindow": 10000000,
+            })
+
+    return sorted(tracks, key=lambda x: x["name"])
+
+
+def collect_peak2gene_track_groups(root_dir):
+    tracks = collect_peak2gene_tracks(root_dir)
+    if not tracks:
+        return {}
+
+    direct_tracks = []
+    gene_tracks = []
+    other_tracks = []
+    for track in tracks:
+        display_track = dict(track)
+        name_parts = track["name"].split("/")
+        if name_parts[0] == "bedpe":
+            display_track["name"] = "/".join(name_parts[1:]) if len(name_parts) > 1 else name_parts[-1]
+            direct_tracks.append(display_track)
+        elif name_parts[0] == "genes_of_interest":
+            display_track["name"] = "/".join(name_parts[1:]) if len(name_parts) > 1 else name_parts[-1]
+            gene_tracks.append(display_track)
+        else:
+            other_tracks.append(display_track)
+
+    groups = {}
+    if direct_tracks:
+        groups["peak2gene"] = sorted(direct_tracks, key=lambda x: x["name"])
+    if gene_tracks:
+        groups["peak2gene_genes"] = sorted(gene_tracks, key=lambda x: x["name"])
+    if other_tracks:
+        groups["peak2gene_other"] = sorted(other_tracks, key=lambda x: x["name"])
+
+    return groups
 
 
 def cluster_marker_to_dataframe(raw_value, key):
