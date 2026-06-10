@@ -123,7 +123,13 @@ top_n_input = w_text_input(
 )
 
 preferred_cluster_key = data_config["preferred_cluster_key"]
-if preferred_cluster_key is not None and preferred_cluster_key in hm_adata.obs:
+stored_cluster_key = None
+if isinstance(deg_params, dict):
+    stored_cluster_key = deg_params.get("groupby") or deg_params.get("cluster_key")
+
+if stored_cluster_key is not None and stored_cluster_key in hm_adata.obs:
+    cluster_key = stored_cluster_key
+elif preferred_cluster_key is not None and preferred_cluster_key in hm_adata.obs:
     cluster_key = preferred_cluster_key
 else:
     cluster_key = choose_group_default(get_cluster_keys(hm_adata))

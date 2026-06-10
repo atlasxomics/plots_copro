@@ -436,11 +436,59 @@ def get_rna_counts_matrix(adata: anndata.AnnData):
     return adata.X, "X"
 
 
+def get_counts_matrix_for_feature(adata: anndata.AnnData, feature: str):
+    var_names = pd.Index(adata.var_names).astype(str)
+    if "counts" in adata.layers:
+        return adata.layers["counts"], "counts", var_names
+
+    if getattr(adata, "raw", None) is not None and adata.raw.X is not None:
+        raw_var_names = pd.Index(adata.raw.var_names).astype(str)
+        if feature in raw_var_names:
+            return adata.raw.X, "raw", raw_var_names
+
+    return adata.X, "X", var_names
+
+
 def matrix_column_to_array(matrix, index: int) -> np.ndarray:
     col = matrix[:, index]
     if sp.issparse(col):
         col = col.toarray()
     return np.asarray(col).ravel()
+
+
+def get_feature_values_for_plot(adata: anndata.AnnData, feature: str):
+    counts_matrix, counts_source, counts_feature_names = get_counts_matrix_for_feature(
+        adata,
+        feature,
+    )
+    if feature not in counts_feature_names:
+        raise KeyError(feature)
+
+    feature_idx = list(counts_feature_names).index(feature)
+    return matrix_column_to_array(counts_matrix, feature_idx), counts_source
+
+
+def create_violin_data(adata: anndata.AnnData, group_by: str, plot_data: str, data_type="obs"):
+    if group_by not in adata.obs:
+        raise KeyError(group_by)
+
+    if data_type == "obs":
+        if plot_data not in adata.obs:
+            raise KeyError(plot_data)
+        values = pd.to_numeric(adata.obs[plot_data], errors="coerce")
+        source = "obs"
+    elif data_type == "feature":
+        values, source = get_feature_values_for_plot(adata, plot_data)
+    else:
+        raise ValueError("data_type must be either 'obs' or 'feature'.")
+
+    df = pd.DataFrame({
+        "group": adata.obs[group_by].astype(str).values,
+        "value": np.asarray(values).ravel(),
+    })
+    df = df[pd.notna(df["value"])]
+
+    return df, source
 
 
 def collect_coverage_tracks(root_dir):
@@ -587,6 +635,23 @@ def collect_peak2gene_track_groups(root_dir):
         groups["peak2gene_other"] = sorted(other_tracks, key=lambda x: x["name"])
 
     return groups
+
+
+def add_peak2gene_overlays_to_coverage_groups(coverage_groups, peak2gene_groups):
+    overlay_tracks = peak2gene_groups.get("peak2gene", [])
+    if not coverage_groups or not overlay_tracks:
+        return coverage_groups
+
+    merged_groups = {}
+    for group, tracks in coverage_groups.items():
+        merged_tracks = list(tracks)
+        for track in overlay_tracks:
+            overlay_track = dict(track)
+            overlay_track["name"] = f"Peak2Gene / {track['name']}"
+            merged_tracks.append(overlay_track)
+        merged_groups[group] = merged_tracks
+
+    return merged_groups
 
 
 def cluster_marker_to_dataframe(raw_value, key):
@@ -736,7 +801,16 @@ def compute_cluster_marker_heatmap_from_degs(
 ):
     if layer is None:
         layer = choose_heatmap_layer(adata)
-    required_cols = {groupby, "names", "logfoldchanges", pval_col}
+    deg_group_col = groupby
+    if deg_group_col not in deg_df.columns:
+        deg_group_col = _first_existing_column(
+            deg_df,
+            ["cluster", "group", "group_name"],
+        )
+
+    required_cols = {"names", "logfoldchanges", pval_col}
+    if deg_group_col is None:
+        required_cols.add(groupby)
     missing = sorted(required_cols - set(deg_df.columns))
     if missing:
         raise ValueError(f"`adata.uns['{deg_key}']` is missing columns: {missing}.")
@@ -746,6 +820,8 @@ def compute_cluster_marker_heatmap_from_degs(
         raise ValueError(f"This plot requires `adata.layers['{layer}']`.")
 
     deg_df = deg_df.copy()
+    if deg_group_col != groupby:
+        deg_df[groupby] = deg_df[deg_group_col]
     deg_df[groupby] = deg_df[groupby].astype(str)
     deg_df["names"] = deg_df["names"].astype(str)
     deg_df["logfoldchanges"] = pd.to_numeric(

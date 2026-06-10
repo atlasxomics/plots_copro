@@ -109,11 +109,10 @@ if cluster_key not in selected_adata.obs:
     submit_widget_state()
     exit()
 
-counts_matrix, counts_source = get_rna_counts_matrix(selected_adata)
-if counts_source == "raw":
-    counts_feature_names = pd.Index(selected_adata.raw.var_names).astype(str)
-else:
-    counts_feature_names = pd.Index(selected_adata.var_names).astype(str)
+counts_matrix, counts_source, counts_feature_names = get_counts_matrix_for_feature(
+    selected_adata,
+    feature,
+)
 
 if feature not in counts_feature_names:
     w_text_output(
@@ -183,10 +182,21 @@ if counts_source == "counts":
 elif counts_source == "raw":
     source_message = f"Count source: `{selected_object_name}.raw.X`."
 else:
-    source_message = (
-        f"Count source: `{selected_object_name}.X` "
-        "(no `counts` layer or `.raw` matrix was found)."
+    raw_missing_feature = (
+        getattr(selected_adata, "raw", None) is not None
+        and selected_adata.raw.X is not None
+        and feature not in pd.Index(selected_adata.raw.var_names).astype(str)
     )
+    if raw_missing_feature:
+        source_message = (
+            f"Count source: `{selected_object_name}.X` "
+            f"(`{feature}` is not present in `{selected_object_name}.raw.var_names`)."
+        )
+    else:
+        source_message = (
+            f"Count source: `{selected_object_name}.X` "
+            "(no `counts` layer or `.raw` matrix was found)."
+        )
 
 w_text_output(content=source_message, appearance={"message_box": "info"})
 w_plot(source=fig)
