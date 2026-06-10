@@ -43,7 +43,7 @@ coverages_group = w_select(
     options=coverage_group_options,
     key="coverages_group",
     default=default_coverage_group,
-    appearance={"help_text": "Select coverage tracks or Peak2Gene linkage tracks."},
+    appearance={"help_text": "Coverage groups include direct Peak2Gene BEDPE overlays when available."},
 )
 
 w_row(items=[coverages_genome, coverages_group])

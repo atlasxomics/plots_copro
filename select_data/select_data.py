@@ -111,7 +111,12 @@ if data_path.value is not None:
 
     if peak2gene_matches:
         peak2gene_dir = peak2gene_matches[0]
-        coverage_track_groups.update(collect_peak2gene_track_groups(peak2gene_dir))
+        peak2gene_track_groups = collect_peak2gene_track_groups(peak2gene_dir)
+        coverage_track_groups = add_peak2gene_overlays_to_coverage_groups(
+            coverage_track_groups,
+            peak2gene_track_groups,
+        )
+        coverage_track_groups.update(peak2gene_track_groups)
 
     coverage_tracks = [
         track
