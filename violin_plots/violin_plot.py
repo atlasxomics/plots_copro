@@ -27,7 +27,7 @@ if adata_ge is not None:
     object_options.append("GE")
     object_map["GE"] = adata_ge
     feature_map["GE"] = available_ge_features
-    object_file_map["GE"] = "ge_glue"
+    object_file_map["GE"] = ge_object_name
 
 object_select = w_select(
     label="Object",

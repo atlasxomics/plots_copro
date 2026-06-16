@@ -1,4 +1,4 @@
-w_text_output(content="## H5 Viewer: `ge_glue.h5ad`")
+w_text_output(content=f"## H5 Viewer: `{ge_object_name}.h5ad`")
 
 new_data_signal()
 if adata_ge is None:
@@ -18,4 +18,4 @@ ge_obs_button = w_checkbox(
 )
 
 if ge_obs_button.value:
-    w_table(label="Metadata (ge_glue.obs)", source=adata_ge.obs)
+    w_table(label=f"Metadata ({ge_object_name}.obs)", source=adata_ge.obs)

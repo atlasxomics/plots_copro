@@ -38,7 +38,7 @@ count_source_select = w_select(
 selected_label = count_source_select.value
 selected_adata = data_map[selected_label]
 selected_features = feature_map[selected_label]
-selected_object_name = "rna_glue" if selected_label == "RNA" else "ge_glue"
+selected_object_name = "rna_glue" if selected_label == "RNA" else ge_object_name
 
 cluster_options = get_cluster_keys(selected_adata)
 if not cluster_options:

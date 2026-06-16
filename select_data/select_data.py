@@ -4,9 +4,9 @@ w_text_output(content="""
 <summary><i>Instructions</i></summary>
 
 Select an `atx_glue` output directory from Latch Data. The directory should
-contain `ge_glue.h5ad`, `rna_glue.h5ad`, and optionally a `coverages/`
-subdirectory with BigWig tracks and a `peak2gene/` subdirectory with BEDPE
-linkage tracks.
+contain `rna_glue.h5ad`, either `ge_glue_sm.h5ad` or `ge_glue.h5ad`, and
+optionally a `coverages/` subdirectory with BigWig tracks and a `peak2gene/`
+subdirectory with BEDPE linkage tracks.
 
 </details>
 """)
@@ -29,12 +29,26 @@ if data_path.value is not None:
     outputs_dir = data_path.value
     children = list(outputs_dir.iterdir())
 
-    ge_matches = [f for f in children if f.name() == "ge_glue.h5ad"]
+    ge_sm_matches = [f for f in children if f.name() == "ge_glue_sm.h5ad"]
+    ge_full_matches = [f for f in children if f.name() == "ge_glue.h5ad"]
     rna_matches = [f for f in children if f.name() == "rna_glue.h5ad"]
 
-    if len(ge_matches) != 1:
+    if len(ge_sm_matches) > 1 or len(ge_full_matches) > 1:
         w_text_output(
-            content="Could not find exactly one `ge_glue.h5ad` file in the selected folder.",
+            content=(
+                "Found multiple GE AnnData files with the same expected name. "
+                "Expected at most one `ge_glue_sm.h5ad` and at most one `ge_glue.h5ad`."
+            ),
+            appearance={"message_box": "danger"},
+        )
+        submit_widget_state()
+        exit()
+    if not ge_sm_matches and not ge_full_matches:
+        w_text_output(
+            content=(
+                "Could not find a GE AnnData file in the selected folder. "
+                "Expected `ge_glue_sm.h5ad` or `ge_glue.h5ad`."
+            ),
             appearance={"message_box": "danger"},
         )
         submit_widget_state()
@@ -47,17 +61,25 @@ if data_path.value is not None:
         submit_widget_state()
         exit()
 
-    ge_path = ge_matches[0]
+    ge_candidates = []
+    if ge_sm_matches:
+        ge_candidates.append(("ge_glue_sm", ge_sm_matches[0]))
+    if ge_full_matches:
+        ge_candidates.append(("ge_glue", ge_full_matches[0]))
+    ge_object_name = ge_candidates[0][0]
+    ge_path = ge_candidates[0][1]
     rna_path = rna_matches[0]
 
     w_text_output(
-        content="Downloading and reading SpatialGlue AnnData files; this may take a few minutes...",
+        content=(
+            "Downloading and reading SpatialGlue AnnData files; this may take a few minutes... "
+            f"Using `{ge_object_name}.h5ad` for GE plotting."
+        ),
         appearance={"message_box": "info"},
     )
     submit_widget_state()
 
     try:
-        ge_path.download(Path(ge_path.name()), cache=True)
         rna_path.download(Path(rna_path.name()), cache=True)
     except Exception as e:
         w_text_output(
@@ -67,11 +89,30 @@ if data_path.value is not None:
         submit_widget_state()
         exit()
 
-    try:
-        adata_ge = sc.read_h5ad(Path(ge_path.name()))
-    except Exception as e:
+    ge_load_errors = []
+    adata_ge = None
+    for candidate_name, candidate_path in ge_candidates:
+        try:
+            candidate_path.download(Path(candidate_path.name()), cache=True)
+            adata_ge = sc.read_h5ad(Path(candidate_path.name()))
+            ge_object_name = candidate_name
+            ge_path = candidate_path
+            break
+        except Exception as e:
+            ge_load_errors.append(f"`{candidate_name}.h5ad`: {e}")
+            if candidate_name == "ge_glue_sm" and len(ge_candidates) > 1:
+                w_text_output(
+                    content=(
+                        f"Could not load `ge_glue_sm.h5ad`; falling back to "
+                        f"`ge_glue.h5ad`. Reason: {e}"
+                    ),
+                    appearance={"message_box": "warning"},
+                )
+                submit_widget_state()
+
+    if adata_ge is None:
         w_text_output(
-            content=f"Error loading `ge_glue.h5ad`: {e}",
+            content="Error loading GE AnnData files: " + " | ".join(ge_load_errors),
             appearance={"message_box": "danger"},
         )
         submit_widget_state()
@@ -137,7 +178,7 @@ if data_path.value is not None:
     w_text_output(
         content=(
             "Data successfully loaded: "
-            f"GE {adata_ge.n_obs} spots x {adata_ge.n_vars} features; "
+            f"GE `{ge_object_name}.h5ad` {adata_ge.n_obs} spots x {adata_ge.n_vars} features; "
             f"RNA {adata_rna.n_obs} spots x {adata_rna.n_vars} genes."
         ),
         appearance={"message_box": "success"},
@@ -155,6 +196,7 @@ else:
     outputs_dir = None
     coverages_dir = None
     peak2gene_dir = None
+    ge_object_name = "ge_glue"
     coverage_tracks = []
     coverage_track_groups = {}
     available_genes = []
