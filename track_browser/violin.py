@@ -1,18 +1,9 @@
+
 w_text_output(content="""
 ## Violin Plot
 
 Plot numeric spot metadata or feature counts across groups from the selected WT or GE object.
 """)
-
-new_data_signal()
-if adata_rna is None and adata_ge is None:
-    w_text_output(
-        content="No data loaded...",
-        appearance={"message_box": "warning"},
-    )
-    fig = None
-    submit_widget_state()
-    exit()
 
 object_options = []
 object_map = {}
