@@ -1,8 +1,9 @@
 w_text_output(content="""
-## Mean Counts Per Spot
+## Mean Expression Per Spot
 
-Generate side-by-side WT and GE barplots of mean counts per spot grouped by
-SpatialGlue cluster for a selected feature.
+Generate side-by-side WT and GE barplots of the mean per-spot value grouped by
+SpatialGlue cluster for a selected feature. Each panel reports the units of the
+matrix it was computed from (raw counts, normalized, or z-scored expression).
 """)
 
 new_data_signal()
@@ -127,27 +128,23 @@ feature = feature_select.value
 cluster_key = cluster_select.value
 
 
-def count_source_message(object_name, counts_source, adata, feature):
-    if counts_source == "counts":
-        return f"{object_name}: `{object_name}.layers['counts']`"
-    if counts_source == "raw":
-        return f"{object_name}: `{object_name}.raw.X`"
+def infer_value_units(counts_source, feature_counts):
+    """Infer the units of a feature vector for honest axis labeling.
 
-    raw_missing_feature = (
-        getattr(adata, "raw", None) is not None
-        and adata.raw.X is not None
-        and feature not in pd.Index(adata.raw.var_names).astype(str)
-    )
-    if raw_missing_feature:
-        return (
-            f"{object_name}: `{object_name}.X` "
-            f"(`{feature}` is not present in `.raw.var_names`)"
-        )
-    return f"{object_name}: `{object_name}.X`"
+    Returns (axis_title, short_tag). When the matrix is true counts we report
+    counts; a fallback to `.X` with negatives is z-scored/scaled data, and a
+    non-negative `.X` fallback is treated as normalized expression.
+    """
+    if counts_source in ("counts", "raw"):
+        return "Mean counts per spot", "raw counts"
+    if np.any(np.asarray(feature_counts) < 0):
+        return "Mean scaled expression (z-score)", "z-scored"
+    return "Mean normalized expression", "normalized"
 
 
 summary_frames = []
-source_messages = []
+unit_axis_by_label = {}
+unit_tag_by_label = {}
 for obj in count_objects:
     label = obj["label"]
     selected_adata = obj["adata"]
@@ -186,6 +183,10 @@ for obj in count_objects:
     feature_counts = matrix_column_to_array(counts_matrix, feature_idx)
     cluster_labels = selected_adata.obs[cluster_key].astype(str)
 
+    unit_axis, unit_tag = infer_value_units(counts_source, feature_counts)
+    unit_axis_by_label[label] = unit_axis
+    unit_tag_by_label[label] = unit_tag
+
     plot_df = pd.DataFrame({
         "object": label,
         "cluster": cluster_labels.values,
@@ -195,24 +196,16 @@ for obj in count_objects:
         plot_df
         .groupby(["object", "cluster"], sort=False)
         .agg(
-            mean_counts_per_spot=("counts", "mean"),
-            total_counts=("counts", "sum"),
+            mean_per_spot=("counts", "mean"),
+            total_value=("counts", "sum"),
             n_spots=("counts", "size"),
-            pct_spots_detected=("counts", lambda x: float((x > 0).mean() * 100)),
+            pct_spots_detected=("counts", lambda x: float((x != 0).mean() * 100)),
         )
         .reset_index()
     )
     summary_df["object"] = summary_df["object"].astype(str)
     summary_df["cluster"] = summary_df["cluster"].astype(str)
     summary_frames.append(summary_df)
-    source_messages.append(
-        count_source_message(
-            selected_object_name,
-            counts_source,
-            selected_adata,
-            feature,
-        )
-    )
 
 summary_df = pd.concat(summary_frames, ignore_index=True)
 cluster_order = sort_group_categories(summary_df["cluster"].unique().tolist())
@@ -226,7 +219,7 @@ color_map = build_discrete_color_map(cluster_order, selected_colors)
 
 fig = px.bar(
     summary_df,
-    x="mean_counts_per_spot",
+    x="mean_per_spot",
     y="cluster",
     color="cluster",
     facet_col="object",
@@ -240,28 +233,41 @@ fig = px.bar(
     hover_data={
         "object": True,
         "cluster": True,
-        "mean_counts_per_spot": ":.3f",
-        "total_counts": ":.0f",
+        "mean_per_spot": ":.3f",
+        "total_value": ":.0f",
         "n_spots": True,
         "pct_spots_detected": ":.1f",
     },
 )
 fig.update_layout(
-    title=f"{feature} mean counts per spot by {cluster_key}",
-    xaxis_title="Mean counts per spot",
+    title=f"{feature} mean per spot by {cluster_key}",
     yaxis_title=cluster_key,
     plot_bgcolor="rgba(0,0,0,0)",
     showlegend=False,
     height=max(450, 180 + 24 * len(cluster_order)),
 )
-fig.for_each_annotation(lambda annotation: annotation.update(text=annotation.text.split("=")[-1]))
-fig.update_yaxes(categoryorder="array", categoryarray=cluster_order, matches=None)
-fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="lightgrey")
 
-w_text_output(
-    content="Count sources: " + "; ".join(source_messages) + ".",
-    appearance={"message_box": "info"},
+# Annotate facet headers with the units each panel was computed in.
+fig.for_each_annotation(
+    lambda annotation: annotation.update(
+        text=(
+            f"{annotation.text.split('=')[-1]}"
+            f" ({unit_tag_by_label.get(annotation.text.split('=')[-1], '')})"
+        )
+    )
 )
+fig.update_yaxes(categoryorder="array", categoryarray=cluster_order, matches=None)
+# Independent x-axes so each panel autoscales to its own value range.
+fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="lightgrey", matches=None)
+
+# Honest per-panel x-axis titles (left-to-right follows object_order).
+panel_axis_titles = [
+    unit_axis_by_label.get(label, "Mean value per spot")
+    for label in object_order
+]
+for axis, axis_title in zip(fig.select_xaxes(), panel_axis_titles):
+    axis.update(title_text=axis_title)
+
 w_plot(source=fig)
 
 show_table = w_checkbox(
@@ -272,6 +278,6 @@ show_table = w_checkbox(
 
 if show_table.value:
     w_table(
-        label=f"{feature} count summary by {cluster_key}",
+        label=f"{feature} per-spot summary by {cluster_key}",
         source=summary_df,
     )
