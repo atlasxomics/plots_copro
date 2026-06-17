@@ -21,7 +21,7 @@ if adata_rna is not None:
         "label": "WT",
         "adata": adata_rna,
         "features": list(available_genes),
-        "object_name": "rna_glue",
+        "object_name": rna_object_name,
     })
 if adata_ge is not None:
     count_objects.append({

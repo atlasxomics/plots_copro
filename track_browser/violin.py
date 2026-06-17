@@ -13,7 +13,7 @@ if adata_rna is not None:
     object_options.append("WT")
     object_map["WT"] = adata_rna
     feature_map["WT"] = available_genes
-    object_file_map["WT"] = "rna_glue"
+    object_file_map["WT"] = rna_object_name
 if adata_ge is not None:
     object_options.append("GE")
     object_map["GE"] = adata_ge

@@ -4,9 +4,10 @@ w_text_output(content="""
 <summary><i>Instructions</i></summary>
 
 Select an `atx_glue` output directory from Latch Data. The directory should
-contain `rna_glue.h5ad`, either `ge_glue_sm.h5ad` or `ge_glue.h5ad`, and
-optionally a `coverages/` subdirectory with BigWig tracks and a `peak2gene/`
-subdirectory with BEDPE linkage tracks.
+contain reduced `rna_glue_sm.h5ad` and `ge_glue_sm.h5ad` files, or the full
+`rna_glue.h5ad` and `ge_glue.h5ad` fallback files. It can also include a
+`coverages/` subdirectory with BigWig tracks and a `peak2gene/` subdirectory
+with BEDPE linkage tracks.
 
 </details>
 """)
@@ -31,13 +32,19 @@ if data_path.value is not None:
 
     ge_sm_matches = [f for f in children if f.name() == "ge_glue_sm.h5ad"]
     ge_full_matches = [f for f in children if f.name() == "ge_glue.h5ad"]
-    rna_matches = [f for f in children if f.name() == "rna_glue.h5ad"]
+    rna_sm_matches = [f for f in children if f.name() == "rna_glue_sm.h5ad"]
+    rna_full_matches = [f for f in children if f.name() == "rna_glue.h5ad"]
 
-    if len(ge_sm_matches) > 1 or len(ge_full_matches) > 1:
+    if (
+        len(ge_sm_matches) > 1
+        or len(ge_full_matches) > 1
+        or len(rna_sm_matches) > 1
+        or len(rna_full_matches) > 1
+    ):
         w_text_output(
             content=(
-                "Found multiple GE AnnData files with the same expected name. "
-                "Expected at most one `ge_glue_sm.h5ad` and at most one `ge_glue.h5ad`."
+                "Found multiple AnnData files with the same expected name. "
+                "Expected at most one reduced and one full file per modality."
             ),
             appearance={"message_box": "danger"},
         )
@@ -53,9 +60,12 @@ if data_path.value is not None:
         )
         submit_widget_state()
         exit()
-    if len(rna_matches) != 1:
+    if not rna_sm_matches and not rna_full_matches:
         w_text_output(
-            content="Could not find exactly one `rna_glue.h5ad` file in the selected folder.",
+            content=(
+                "Could not find an RNA AnnData file in the selected folder. "
+                "Expected `rna_glue_sm.h5ad` or `rna_glue.h5ad`."
+            ),
             appearance={"message_box": "danger"},
         )
         submit_widget_state()
@@ -66,28 +76,24 @@ if data_path.value is not None:
         ge_candidates.append(("ge_glue_sm", ge_sm_matches[0]))
     if ge_full_matches:
         ge_candidates.append(("ge_glue", ge_full_matches[0]))
+    rna_candidates = []
+    if rna_sm_matches:
+        rna_candidates.append(("rna_glue_sm", rna_sm_matches[0]))
+    if rna_full_matches:
+        rna_candidates.append(("rna_glue", rna_full_matches[0]))
     ge_object_name = ge_candidates[0][0]
     ge_path = ge_candidates[0][1]
-    rna_path = rna_matches[0]
+    rna_object_name = rna_candidates[0][0]
+    rna_path = rna_candidates[0][1]
 
     w_text_output(
         content=(
             "Downloading and reading SpatialGlue AnnData files; this may take a few minutes... "
-            f"Using `{ge_object_name}.h5ad` for GE plotting."
+            f"Using `{rna_object_name}.h5ad` for WT/RNA and `{ge_object_name}.h5ad` for GE."
         ),
         appearance={"message_box": "info"},
     )
     submit_widget_state()
-
-    try:
-        rna_path.download(Path(rna_path.name()), cache=True)
-    except Exception as e:
-        w_text_output(
-            content=f"Error downloading input files: {e}",
-            appearance={"message_box": "danger"},
-        )
-        submit_widget_state()
-        exit()
 
     ge_load_errors = []
     adata_ge = None
@@ -118,11 +124,30 @@ if data_path.value is not None:
         submit_widget_state()
         exit()
 
-    try:
-        adata_rna = sc.read_h5ad(Path(rna_path.name()))
-    except Exception as e:
+    rna_load_errors = []
+    adata_rna = None
+    for candidate_name, candidate_path in rna_candidates:
+        try:
+            candidate_path.download(Path(candidate_path.name()), cache=True)
+            adata_rna = sc.read_h5ad(Path(candidate_path.name()))
+            rna_object_name = candidate_name
+            rna_path = candidate_path
+            break
+        except Exception as e:
+            rna_load_errors.append(f"`{candidate_name}.h5ad`: {e}")
+            if candidate_name == "rna_glue_sm" and len(rna_candidates) > 1:
+                w_text_output(
+                    content=(
+                        f"Could not load `rna_glue_sm.h5ad`; falling back to "
+                        f"`rna_glue.h5ad`. Reason: {e}"
+                    ),
+                    appearance={"message_box": "warning"},
+                )
+                submit_widget_state()
+
+    if adata_rna is None:
         w_text_output(
-            content=f"Error loading `rna_glue.h5ad`: {e}",
+            content="Error loading RNA AnnData files: " + " | ".join(rna_load_errors),
             appearance={"message_box": "danger"},
         )
         submit_widget_state()
@@ -179,7 +204,7 @@ if data_path.value is not None:
         content=(
             "Data successfully loaded: "
             f"GE `{ge_object_name}.h5ad` {adata_ge.n_obs} spots x {adata_ge.n_vars} features; "
-            f"RNA {adata_rna.n_obs} spots x {adata_rna.n_vars} genes."
+            f"RNA `{rna_object_name}.h5ad` {adata_rna.n_obs} spots x {adata_rna.n_vars} genes."
         ),
         appearance={"message_box": "success"},
     )
@@ -197,6 +222,7 @@ else:
     coverages_dir = None
     peak2gene_dir = None
     ge_object_name = "ge_glue"
+    rna_object_name = "rna_glue"
     coverage_tracks = []
     coverage_track_groups = {}
     available_genes = []

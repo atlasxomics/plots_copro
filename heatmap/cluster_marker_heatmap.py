@@ -5,7 +5,7 @@ w_text_output(content="""
 # Cluster Marker Heatmap
 
 Create marker-feature heatmaps from ranked gene tables or SpatialGlue cluster
-DEG results stored in `ge_glue.h5ad` and `rna_glue.h5ad`.
+DEG results stored in the loaded GE and WT/RNA AnnData objects.
 
 """)
 

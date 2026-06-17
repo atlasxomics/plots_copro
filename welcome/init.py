@@ -73,6 +73,7 @@ outputs_dir = None
 coverages_dir = None
 peak2gene_dir = None
 ge_object_name = "ge_glue"
+rna_object_name = "rna_glue"
 coverage_tracks = []
 coverage_track_groups = {}
 available_genes = []

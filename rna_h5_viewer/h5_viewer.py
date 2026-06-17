@@ -1,4 +1,4 @@
-w_text_output(content="## H5 Viewer: `rna_glue.h5ad`")
+w_text_output(content=f"## H5 Viewer: `{rna_object_name}.h5ad`")
 
 new_data_signal()
 if adata_rna is None:
@@ -18,4 +18,4 @@ rna_obs_button = w_checkbox(
 )
 
 if rna_obs_button.value:
-    w_table(label="Metadata (rna_glue.obs)", source=adata_rna.obs)
+    w_table(label=f"Metadata ({rna_object_name}.obs)", source=adata_rna.obs)
