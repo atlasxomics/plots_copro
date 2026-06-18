@@ -282,11 +282,6 @@ for frame in violin_frames:
         loc = "X"
     source_lines.append(f"{frame['label']}: `{frame['object_name']}.{loc}`")
 
-w_text_output(
-    content="Value sources — " + "; ".join(source_lines),
-    appearance={"message_box": "info"},
-)
-
 w_plot(source=violin_fig)
 
 w_row(items=[value_select, plot_type, palette])
