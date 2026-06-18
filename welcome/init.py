@@ -163,6 +163,39 @@ def build_discrete_color_map(categories, colors):
     return {category: colors[i % len(colors)] for i, category in enumerate(categories)}
 
 
+def create_proportion_dataframe(
+    adata: anndata.AnnData,
+    group_by: str,
+    stack_by: str,
+    return_type: str = "proportion",
+) -> pd.DataFrame:
+    if group_by not in adata.obs:
+        raise KeyError(group_by)
+    if stack_by not in adata.obs:
+        raise KeyError(stack_by)
+
+    count_df = pd.crosstab(
+        adata.obs[group_by].astype(str),
+        adata.obs[stack_by].astype(str),
+    )
+
+    if return_type == "proportion":
+        result_df = count_df.div(count_df.sum(axis=1), axis=0).fillna(0)
+    elif return_type == "counts":
+        result_df = count_df
+    else:
+        raise ValueError("return_type must be 'proportion' or 'counts'.")
+
+    long_df = result_df.reset_index().melt(
+        id_vars=group_by,
+        value_name="value",
+        var_name=stack_by,
+    )
+    long_df.columns = ["group_by", "stack_by", "value"]
+
+    return long_df
+
+
 def rename_obs_keys(adata: anndata.AnnData) -> anndata.AnnData:
     key_map = {
         "Sample": "sample",
