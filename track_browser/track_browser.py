@@ -44,17 +44,17 @@ if not coverage_group_options:
     exit()
 
 default_coverage_group = (
-    "glue_cluster"
-    if "glue_cluster" in coverage_group_options
+    "copro_cluster"
+    if "copro_cluster" in coverage_group_options
     else coverage_group_options[0]
 )
 
 coverages_group = w_select(
-    label="Track group",
+    label="Group",
     options=coverage_group_options,
     key="coverages_group",
     default=default_coverage_group,
-    appearance={"help_text": "Coverage groups include direct Peak2Gene BEDPE overlays when available."},
+    appearance={"help_text": "Select the browser coverage group and violin grouping."},
 )
 
 w_row(items=[coverages_genome, coverages_group])

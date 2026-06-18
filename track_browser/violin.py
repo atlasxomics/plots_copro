@@ -11,8 +11,8 @@ w_text_output(content="""
 ## Violin Plot
 
 Compare numeric spot metadata or feature values across groups for both the RNA
-and ATAC objects, stacked vertically. The same Value and Group selections are
-applied to each object.
+and ATAC objects, stacked vertically. The selected browser Group is used for
+the x-axis of each panel.
 """)
 
 new_data_signal()
@@ -42,7 +42,6 @@ if adata_ge is not None:
 
 numeric_meta_by_label = {}
 value_option_sets = []
-group_option_sets = []
 for obj in violin_objects:
     a = obj["adata"]
     numeric_metadata = [
@@ -51,14 +50,11 @@ for obj in violin_objects:
     ]
     numeric_meta_by_label[obj["label"]] = set(numeric_metadata)
     value_option_sets.append(set(numeric_metadata) | set(obj["features"]))
-    group_option_sets.append(set(get_groupable_obs_keys(a)))
 
 if len(violin_objects) > 1:
     shared_values = set.intersection(*value_option_sets)
-    shared_groups = set.intersection(*group_option_sets)
 else:
     shared_values = value_option_sets[0]
-    shared_groups = group_option_sets[0]
 
 # Preserve a sensible order using the first object's listing.
 first_adata = violin_objects[0]["adata"]
@@ -70,10 +66,6 @@ ordered_value_options = [
     v for v in (first_numeric + list(violin_objects[0]["features"]))
     if v in shared_values
 ]
-ordered_group_options = [
-    g for g in get_groupable_obs_keys(first_adata)
-    if g in shared_groups
-]
 
 if not ordered_value_options:
     w_text_output(
@@ -82,9 +74,50 @@ if not ordered_value_options:
     )
     submit_widget_state()
     exit()
-if not ordered_group_options:
+
+
+def normalize_group_key(value):
+    normalized = "".join(ch for ch in str(value).lower() if ch.isalnum())
+    return normalized[:-1] if normalized.endswith("s") else normalized
+
+
+def first_existing_group_key(adatas, selected_group, candidates):
+    for candidate in candidates:
+        if all(candidate in adata.obs for adata in adatas):
+            return candidate
+
+    shared_obs = set(adatas[0].obs.columns)
+    for adata in adatas[1:]:
+        shared_obs &= set(adata.obs.columns)
+
+    selected_norm = normalize_group_key(selected_group)
+    for obs_key in shared_obs:
+        if normalize_group_key(obs_key) == selected_norm:
+            return obs_key
+
+    return None
+
+
+selected_browser_group = coverages_group.value
+violin_group_candidates = {
+    "copro_cluster": ["CoPro clusters", "sg_clusters", "sg_leiden_merged", "sg_leiden", "cluster"],
+    "atac_cluster": ["ATAC_cluster", "cluster"],
+    "rna_cluster": ["WT_cluster", "cluster"],
+    "sample": ["sample"],
+    "condition": ["condition"],
+}
+group_key = first_existing_group_key(
+    [obj["adata"] for obj in violin_objects],
+    selected_browser_group,
+    violin_group_candidates.get(selected_browser_group, [selected_browser_group]),
+)
+
+if group_key is None:
     w_text_output(
-        content="No shared groupable metadata columns were found across the RNA and ATAC objects.",
+        content=(
+            f"The selected browser group `{selected_browser_group}` does not map "
+            "to a shared RNA/ATAC metadata column for the violin plot."
+        ),
         appearance={"message_box": "warning"},
     )
     submit_widget_state()
@@ -113,14 +146,6 @@ value_select = w_select(
     appearance={"help_text": "Numeric metadata or feature plotted for both objects."},
 )
 
-group_select = w_select(
-    label="Group",
-    key="violin_group",
-    default=choose_group_default(ordered_group_options),
-    options=tuple(ordered_group_options),
-    appearance={"help_text": "Grouping shown on the x-axis of each panel."},
-)
-
 plot_type = w_select(
     label="Plot type",
     key="violin_plot_type",
@@ -129,10 +154,7 @@ plot_type = w_select(
     appearance={"help_text": "Use box for faster rendering on large datasets."},
 )
 
-w_row(items=[value_select, group_select, plot_type, palette])
-
 plot_value = value_select.value
-group_key = group_select.value
 
 violin_frames = []
 for obj in violin_objects:
@@ -266,6 +288,8 @@ w_text_output(
 )
 
 w_plot(source=violin_fig)
+
+w_row(items=[value_select, plot_type, palette])
 
 show_table = w_checkbox(
     label="Display violin data",

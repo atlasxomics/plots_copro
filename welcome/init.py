@@ -39,6 +39,12 @@ w_text_output(content="""
 This notebook provides interactive viewers and starter figure generation for
 `atx_glue` outputs from spatial whole transcriptome plus ATAC/CUT&Tag
 coprofiling experiments.
+              
+You can compare clustering results from three different workflows:
+- **ATAC_clustering**: from an epigenomic tile matrix
+- **RNA_clustering**: from a whole transcriptome expression matrix
+- **CoPro_clustering**: from a combined embedding via SpatialGlue
+
 
 """)
 
@@ -592,12 +598,42 @@ def collect_coverage_track_groups(root_dir):
         "condition_coverages": "condition",
         "metadata_coverages": "metadata",
     }
-    for track in collect_coverage_tracks(root_dir):
+    cluster_folder_preferences = {
+        "ATAC_cluster_coverages": ["ATAC_cluster", "cluster", "Clusters"],
+        "atac_cluster_coverages": ["ATAC_cluster", "cluster", "Clusters"],
+        "RNA_cluster_coverages": ["WT_cluster", "cluster", "Clusters"],
+        "rna_cluster_coverages": ["WT_cluster", "cluster", "Clusters"],
+    }
+    coverage_tracks = collect_coverage_tracks(root_dir)
+    available_cluster_subdirs = {}
+    for track in coverage_tracks:
         name_parts = track["name"].split("/")
         top_folder = name_parts[0] if len(name_parts) > 1 else "coverages"
+        if top_folder in cluster_folder_preferences and len(name_parts) > 2:
+            available_cluster_subdirs.setdefault(top_folder, set()).add(name_parts[1])
+
+    selected_cluster_subdirs = {}
+    for top_folder, subdirs in available_cluster_subdirs.items():
+        preferred = cluster_folder_preferences[top_folder]
+        selected = next((subdir for subdir in preferred if subdir in subdirs), None)
+        if selected is None:
+            selected = sorted(subdirs, key=cluster_marker_sort_key)[0]
+        selected_cluster_subdirs[top_folder] = selected
+
+    for track in coverage_tracks:
+        name_parts = track["name"].split("/")
+        top_folder = name_parts[0] if len(name_parts) > 1 else "coverages"
+        selected_subdir = selected_cluster_subdirs.get(top_folder)
+        if selected_subdir is not None:
+            if len(name_parts) <= 2 or name_parts[1] != selected_subdir:
+                continue
+
         group_name = group_labels.get(top_folder, top_folder)
         display_track = dict(track)
-        display_track["name"] = "/".join(name_parts[1:]) if len(name_parts) > 1 else name_parts[-1]
+        if selected_subdir is not None:
+            display_track["name"] = "/".join(name_parts[2:])
+        else:
+            display_track["name"] = "/".join(name_parts[1:]) if len(name_parts) > 1 else name_parts[-1]
         groups.setdefault(group_name, []).append(display_track)
 
     preferred_order = [
