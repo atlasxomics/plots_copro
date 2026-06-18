@@ -4,10 +4,10 @@ w_text_output(content="""
 <summary><i>Instructions</i></summary>
 
 Select an `atx_glue` output directory from Latch Data. The directory should
-contain reduced `rna_glue_sm.h5ad` and `ge_glue_sm.h5ad` files, or the full
-`rna_glue.h5ad` and `ge_glue.h5ad` fallback files. It can also include a
-`coverages/` subdirectory with BigWig tracks and a `peak2gene/` subdirectory
-with BEDPE linkage tracks.
+contain reduced `rna_copro_sm.h5ad` and `atac_gs_copro_sm.h5ad` files, or the
+full `rna_copro.h5ad` and `atac_gs_copro.h5ad` fallback files. It can also
+include a `coverages/` subdirectory with BigWig tracks and a `peak2gene/`
+subdirectory with BEDPE linkage tracks.
 
 </details>
 """)
@@ -30,10 +30,10 @@ if data_path.value is not None:
     outputs_dir = data_path.value
     children = list(outputs_dir.iterdir())
 
-    ge_sm_matches = [f for f in children if f.name() == "ge_glue_sm.h5ad"]
-    ge_full_matches = [f for f in children if f.name() == "ge_glue.h5ad"]
-    rna_sm_matches = [f for f in children if f.name() == "rna_glue_sm.h5ad"]
-    rna_full_matches = [f for f in children if f.name() == "rna_glue.h5ad"]
+    ge_sm_matches = [f for f in children if f.name() == "atac_gs_copro_sm.h5ad"]
+    ge_full_matches = [f for f in children if f.name() == "atac_gs_copro.h5ad"]
+    rna_sm_matches = [f for f in children if f.name() == "rna_copro_sm.h5ad"]
+    rna_full_matches = [f for f in children if f.name() == "rna_copro.h5ad"]
 
     if (
         len(ge_sm_matches) > 1
@@ -53,8 +53,8 @@ if data_path.value is not None:
     if not ge_sm_matches and not ge_full_matches:
         w_text_output(
             content=(
-                "Could not find a GE AnnData file in the selected folder. "
-                "Expected `ge_glue_sm.h5ad` or `ge_glue.h5ad`."
+                "Could not find an ATAC AnnData file in the selected folder. "
+                "Expected `atac_gs_copro_sm.h5ad` or `atac_gs_copro.h5ad`."
             ),
             appearance={"message_box": "danger"},
         )
@@ -64,7 +64,7 @@ if data_path.value is not None:
         w_text_output(
             content=(
                 "Could not find an RNA AnnData file in the selected folder. "
-                "Expected `rna_glue_sm.h5ad` or `rna_glue.h5ad`."
+                "Expected `rna_copro_sm.h5ad` or `rna_copro.h5ad`."
             ),
             appearance={"message_box": "danger"},
         )
@@ -73,14 +73,14 @@ if data_path.value is not None:
 
     ge_candidates = []
     if ge_sm_matches:
-        ge_candidates.append(("ge_glue_sm", ge_sm_matches[0]))
+        ge_candidates.append(("atac_gs_copro_sm", ge_sm_matches[0]))
     if ge_full_matches:
-        ge_candidates.append(("ge_glue", ge_full_matches[0]))
+        ge_candidates.append(("atac_gs_copro", ge_full_matches[0]))
     rna_candidates = []
     if rna_sm_matches:
-        rna_candidates.append(("rna_glue_sm", rna_sm_matches[0]))
+        rna_candidates.append(("rna_copro_sm", rna_sm_matches[0]))
     if rna_full_matches:
-        rna_candidates.append(("rna_glue", rna_full_matches[0]))
+        rna_candidates.append(("rna_copro", rna_full_matches[0]))
     ge_object_name = ge_candidates[0][0]
     ge_path = ge_candidates[0][1]
     rna_object_name = rna_candidates[0][0]
@@ -89,7 +89,7 @@ if data_path.value is not None:
     w_text_output(
         content=(
             "Downloading and reading SpatialGlue AnnData files; this may take a few minutes... "
-            f"Using `{rna_object_name}.h5ad` for WT/RNA and `{ge_object_name}.h5ad` for GE."
+            f"Using `{rna_object_name}.h5ad` for RNA and `{ge_object_name}.h5ad` for ATAC."
         ),
         appearance={"message_box": "info"},
     )
@@ -106,11 +106,11 @@ if data_path.value is not None:
             break
         except Exception as e:
             ge_load_errors.append(f"`{candidate_name}.h5ad`: {e}")
-            if candidate_name == "ge_glue_sm" and len(ge_candidates) > 1:
+            if candidate_name == "atac_gs_copro_sm" and len(ge_candidates) > 1:
                 w_text_output(
                     content=(
-                        f"Could not load `ge_glue_sm.h5ad`; falling back to "
-                        f"`ge_glue.h5ad`. Reason: {e}"
+                        f"Could not load `atac_gs_copro_sm.h5ad`; falling back to "
+                        f"`atac_gs_copro.h5ad`. Reason: {e}"
                     ),
                     appearance={"message_box": "warning"},
                 )
@@ -118,7 +118,7 @@ if data_path.value is not None:
 
     if adata_ge is None:
         w_text_output(
-            content="Error loading GE AnnData files: " + " | ".join(ge_load_errors),
+            content="Error loading ATAC AnnData files: " + " | ".join(ge_load_errors),
             appearance={"message_box": "danger"},
         )
         submit_widget_state()
@@ -135,11 +135,11 @@ if data_path.value is not None:
             break
         except Exception as e:
             rna_load_errors.append(f"`{candidate_name}.h5ad`: {e}")
-            if candidate_name == "rna_glue_sm" and len(rna_candidates) > 1:
+            if candidate_name == "rna_copro_sm" and len(rna_candidates) > 1:
                 w_text_output(
                     content=(
-                        f"Could not load `rna_glue_sm.h5ad`; falling back to "
-                        f"`rna_glue.h5ad`. Reason: {e}"
+                        f"Could not load `rna_copro_sm.h5ad`; falling back to "
+                        f"`rna_copro.h5ad`. Reason: {e}"
                     ),
                     appearance={"message_box": "warning"},
                 )
@@ -203,7 +203,7 @@ if data_path.value is not None:
     w_text_output(
         content=(
             "Data successfully loaded: "
-            f"GE `{ge_object_name}.h5ad` {adata_ge.n_obs} spots x {adata_ge.n_vars} features; "
+            f"ATAC `{ge_object_name}.h5ad` {adata_ge.n_obs} spots x {adata_ge.n_vars} features; "
             f"RNA `{rna_object_name}.h5ad` {adata_rna.n_obs} spots x {adata_rna.n_vars} genes."
         ),
         appearance={"message_box": "success"},
@@ -221,8 +221,8 @@ else:
     outputs_dir = None
     coverages_dir = None
     peak2gene_dir = None
-    ge_object_name = "ge_glue"
-    rna_object_name = "rna_glue"
+    ge_object_name = "atac_gs_copro"
+    rna_object_name = "rna_copro"
     coverage_tracks = []
     coverage_track_groups = {}
     available_genes = []

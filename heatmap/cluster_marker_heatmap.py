@@ -5,15 +5,16 @@ w_text_output(content="""
 # Cluster Marker Heatmap
 
 Create marker-feature heatmaps from ranked gene tables or SpatialGlue cluster
-DEG results stored in the loaded GE and WT/RNA AnnData objects.
+DEG results stored in `ge_glue.h5ad` and `rna_glue.h5ad`. Choose which data
+source and clustering to summarize.
 
 """)
 
 data_options = []
 data_map = {}
 if adata_ge is not None and isinstance(adata_ge, AnnData):
-    data_options.append("GE")
-    data_map["GE"] = {
+    data_options.append("ATAC")
+    data_map["ATAC"] = {
         "adata": adata_ge,
         "deg_key": "ranked_genes_per_cluster",
         "deg_params_key": None,
@@ -26,8 +27,8 @@ if adata_ge is not None and isinstance(adata_ge, AnnData):
         "stagate_cluster_marker_degs" in adata_ge.uns
         or "stagate_cluster_marker_heatmap" in adata_ge.uns
     ):
-        data_options.append("GE-SpatialGlue")
-        data_map["GE-SpatialGlue"] = {
+        data_options.append("ATAC (SpatialGlue clusters)")
+        data_map["ATAC (SpatialGlue clusters)"] = {
             "adata": adata_ge,
             "deg_key": "stagate_cluster_marker_degs",
             "deg_params_key": "stagate_cluster_marker_degs_params",
@@ -37,8 +38,8 @@ if adata_ge is not None and isinstance(adata_ge, AnnData):
             "preferred_cluster_key": "sg_leiden_merged",
         }
 if adata_rna is not None and isinstance(adata_rna, AnnData):
-    data_options.append("WT/RNA")
-    data_map["WT/RNA"] = {
+    data_options.append("RNA")
+    data_map["RNA"] = {
         "adata": adata_rna,
         "deg_key": "cluster_marker_degs",
         "deg_params_key": "cluster_marker_degs_params",
@@ -51,8 +52,8 @@ if adata_rna is not None and isinstance(adata_rna, AnnData):
         "stagate_cluster_marker_degs" in adata_rna.uns
         or "stagate_cluster_marker_heatmap" in adata_rna.uns
     ):
-        data_options.append("RNA-SpatialGlue")
-        data_map["RNA-SpatialGlue"] = {
+        data_options.append("RNA (SpatialGlue clusters)")
+        data_map["RNA (SpatialGlue clusters)"] = {
             "adata": adata_rna,
             "deg_key": "stagate_cluster_marker_degs",
             "deg_params_key": "stagate_cluster_marker_degs_params",
@@ -74,12 +75,12 @@ heatmap_data_select = w_select(
     key="cluster_marker_heatmap_data_source",
     label="Data",
     default=(
-        "RNA-SpatialGlue"
-        if "RNA-SpatialGlue" in data_options
-        else ("WT/RNA" if "WT/RNA" in data_options else data_options[0])
+        "RNA (SpatialGlue clusters)"
+        if "RNA (SpatialGlue clusters)" in data_options
+        else ("RNA" if "RNA" in data_options else data_options[0])
     ),
     options=tuple(data_options),
-    appearance={"help_text": "Choose which loaded AnnData object to plot."},
+    appearance={"help_text": "Choose which loaded AnnData object and clustering to plot."},
 )
 
 data_config = data_map[heatmap_data_select.value]
@@ -134,17 +135,22 @@ elif preferred_cluster_key is not None and preferred_cluster_key in hm_adata.obs
 else:
     cluster_key = choose_group_default(get_cluster_keys(hm_adata))
 
+deg_load_error = None
 if deg_key in hm_adata.uns:
-    if data_config["mode"] == "ranked":
-        if cluster_key is None:
-            cluster_key = "cluster"
-        candidate_degs = normalize_ranked_genes_per_cluster(
-            hm_adata.uns[deg_key],
-            deg_key,
-            groupby=cluster_key,
-        )
-    else:
-        candidate_degs = cluster_marker_to_dataframe(hm_adata.uns[deg_key], deg_key)
+    try:
+        if data_config["mode"] == "ranked":
+            if cluster_key is None:
+                cluster_key = "cluster"
+            candidate_degs = normalize_ranked_genes_per_cluster(
+                hm_adata.uns[deg_key],
+                deg_key,
+                groupby=cluster_key,
+            )
+        else:
+            candidate_degs = cluster_marker_to_dataframe(hm_adata.uns[deg_key], deg_key)
+    except Exception as e:
+        candidate_degs = None
+        deg_load_error = str(e)
 else:
     candidate_degs = None
 
@@ -243,9 +249,14 @@ try:
             else None
         )
         if marker_heatmap_df is None:
+            if deg_load_error is not None:
+                raise ValueError(
+                    f"No usable marker rows in `adata.uns['{deg_key}']` for "
+                    f"{data_label}: {deg_load_error}"
+                )
             if data_config["mode"] == "ranked":
                 raise ValueError(
-                    f"No ranked gene table (`adata.uns['{deg_key}']`) was found in GE."
+                    f"No ranked gene table (`adata.uns['{deg_key}']`) was found in {data_label}."
                 )
             else:
                 raise ValueError(

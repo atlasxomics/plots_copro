@@ -1,5 +1,3 @@
-w_text_output(content=f"## H5 Viewer: `{rna_object_name}.h5ad`")
-
 new_data_signal()
 if adata_rna is None:
     w_text_output(
@@ -7,6 +5,8 @@ if adata_rna is None:
         appearance={"message_box": "warning"},
     )
     exit()
+
+w_text_output(content=f"## H5 Viewer: `{rna_object_name}.h5ad`")
 
 refresh_rna_h5_signal()
 w_h5(ann_data=adata_rna)

@@ -1,7 +1,7 @@
 w_text_output(content="""
 ## Mean Expression Per Spot
 
-Generate side-by-side WT and GE barplots of the mean per-spot value grouped by
+Generate side-by-side RNA and ATAC barplots of the mean per-spot value grouped by
 SpatialGlue cluster for a selected feature. Each panel reports the units of the
 matrix it was computed from (raw counts, normalized, or z-scored expression).
 """)
@@ -19,14 +19,14 @@ if adata_rna is None and adata_ge is None:
 count_objects = []
 if adata_rna is not None:
     count_objects.append({
-        "label": "WT",
+        "label": "RNA",
         "adata": adata_rna,
         "features": list(available_genes),
         "object_name": rna_object_name,
     })
 if adata_ge is not None:
     count_objects.append({
-        "label": "GE",
+        "label": "ATAC",
         "adata": adata_ge,
         "features": list(available_ge_features),
         "object_name": ge_object_name,
@@ -54,7 +54,7 @@ else:
 
 if not feature_options:
     w_text_output(
-        content="No shared WT/GE features were found for side-by-side plotting.",
+        content="No shared RNA/ATAC features were found for side-by-side plotting.",
         appearance={"message_box": "warning"},
     )
     submit_widget_state()
@@ -84,7 +84,7 @@ else:
 
 if not cluster_options:
     w_text_output(
-        content="No shared WT/GE cluster metadata columns were found for side-by-side plotting.",
+        content="No shared RNA/ATAC cluster metadata columns were found for side-by-side plotting.",
         appearance={"message_box": "warning"},
     )
     submit_widget_state()

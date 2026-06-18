@@ -1,5 +1,6 @@
 import anndata
 import math
+import warnings
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -23,6 +24,14 @@ from lplots.widgets.row import w_row
 from lplots.widgets.select import w_select
 from lplots.widgets.table import w_table
 from lplots.widgets.text import w_text_input, w_text_output
+
+# Suppress benign pandas display-formatting RuntimeWarning emitted when very
+# large float values are cast for rendering; it does not affect plots or data.
+warnings.filterwarnings(
+    "ignore",
+    message="overflow encountered in cast",
+    category=RuntimeWarning,
+)
 
 w_text_output(content="# **Spatial Single Cell Coprofiling Report**")
 w_text_output(content="""
@@ -69,11 +78,11 @@ adata_ge = None
 adata_rna = None
 ge_path = None
 rna_path = None
+ge_object_name = "atac_gs_copro"
+rna_object_name = "rna_copro"
 outputs_dir = None
 coverages_dir = None
 peak2gene_dir = None
-ge_object_name = "ge_glue"
-rna_object_name = "rna_glue"
 coverage_tracks = []
 coverage_track_groups = {}
 available_genes = []
@@ -162,7 +171,7 @@ def rename_obs_keys(adata: anndata.AnnData) -> anndata.AnnData:
         "Clusters": "cluster",
     }
 
-    keys = adata.obs_keys()
+    keys = list(adata.obs.columns)
     for src, dest in key_map.items():
         if src in keys and dest not in keys:
             adata.obs[dest] = adata.obs[src]
@@ -196,7 +205,7 @@ def sort_group_categories(values):
 
 def get_categorical_obs_keys(adata: anndata.AnnData) -> List[str]:
     return [
-        key for key in adata.obs_keys()
+        key for key in adata.obs.columns
         if (
             pd.api.types.is_object_dtype(adata.obs[key])
             or pd.api.types.is_categorical_dtype(adata.obs[key])
@@ -283,7 +292,7 @@ def process_matrix_layout(
     sample_order_mode: str = "original",
     condition_key: str = "condition",
 ):
-    if sample_key not in adata_all.obs or spatial_key not in adata_all.obsm_keys():
+    if sample_key not in adata_all.obs or spatial_key not in adata_all.obsm:
         return
 
     if sample_order_mode == "original":
@@ -393,7 +402,7 @@ def prepare_adata_for_viewer(adata: anndata.AnnData) -> anndata.AnnData:
     adata = rename_obs_keys(adata)
 
     for col in ["n_fragment", "n_counts", "total_counts"]:
-        if col in adata.obs_keys():
+        if col in adata.obs.columns:
             adata.obs[col] = pd.to_numeric(adata.obs[col], errors="ignore")
 
     for group in get_groupable_obs_keys(adata):
@@ -402,8 +411,8 @@ def prepare_adata_for_viewer(adata: anndata.AnnData) -> anndata.AnnData:
 
     if (
         "sample" in adata.obs
-        and "spatial" in adata.obsm_keys()
-        and DEFAULT_DATASET_OBSM_KEY not in adata.obsm_keys()
+        and "spatial" in adata.obsm
+        and DEFAULT_DATASET_OBSM_KEY not in adata.obsm
     ):
         n_samples = adata.obs["sample"].nunique()
         if n_samples > 0:
@@ -540,9 +549,15 @@ def collect_coverage_tracks(root_dir):
 def collect_coverage_track_groups(root_dir):
     groups = {}
     group_labels = {
+        "ATAC_cluster_coverages": "atac_cluster",
+        "CoPro_cluster_coverages": "copro_cluster",
+        "RNA_cluster_coverages": "rna_cluster",
         "atac_cluster_coverages": "atac_cluster",
-        "glue_cluster_coverages": "glue_cluster",
+        "glue_cluster_coverages": "copro_cluster",
         "rna_cluster_coverages": "rna_cluster",
+        "sample_coverages": "sample",
+        "condition_coverages": "condition",
+        "metadata_coverages": "metadata",
     }
     for track in collect_coverage_tracks(root_dir):
         name_parts = track["name"].split("/")
@@ -552,7 +567,14 @@ def collect_coverage_track_groups(root_dir):
         display_track["name"] = "/".join(name_parts[1:]) if len(name_parts) > 1 else name_parts[-1]
         groups.setdefault(group_name, []).append(display_track)
 
-    preferred_order = ["atac_cluster", "glue_cluster", "rna_cluster"]
+    preferred_order = [
+        "copro_cluster",
+        "atac_cluster",
+        "rna_cluster",
+        "sample",
+        "condition",
+        "metadata",
+    ]
     ordered_groups = {
         group: groups[group]
         for group in preferred_order

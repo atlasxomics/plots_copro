@@ -31,10 +31,21 @@ coverages_genome = w_select(
     appearance={"help_text": "Select reference genome."},
 )
 
-coverage_group_options = tuple(coverage_track_groups.keys())
+coverage_group_options = tuple(
+    group for group in coverage_track_groups.keys()
+    if group != "peak2gene"
+)
+if not coverage_group_options:
+    w_text_output(
+        content="No track groups are available to display.",
+        appearance={"message_box": "warning"},
+    )
+    submit_widget_state()
+    exit()
+
 default_coverage_group = (
     "glue_cluster"
-    if "glue_cluster" in coverage_track_groups
+    if "glue_cluster" in coverage_group_options
     else coverage_group_options[0]
 )
 
