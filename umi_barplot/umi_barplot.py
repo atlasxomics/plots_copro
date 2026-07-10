@@ -260,9 +260,12 @@ fig.update_yaxes(categoryorder="array", categoryarray=cluster_order, matches=Non
 # Independent x-axes so each panel autoscales to its own value range.
 fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="lightgrey", matches=None)
 
-# Honest per-panel x-axis titles (left-to-right follows object_order).
+# Honest per-panel x-axis titles (left-to-right follows object_order). ATAC is
+# gene-activity data, so label it as an accessibility score rather than expression.
+ATAC_AXIS_TITLE = "Mean normalized gene accessibility score"
 panel_axis_titles = [
-    unit_axis_by_label.get(label, "Mean value per spot")
+    ATAC_AXIS_TITLE if label == "ATAC"
+    else unit_axis_by_label.get(label, "Mean value per spot")
     for label in object_order
 ]
 for axis, axis_title in zip(fig.select_xaxes(), panel_axis_titles):
