@@ -1,7 +1,7 @@
 new_data_signal()
 
 w_text_output(content="""
-# Proportion Plot
+## Proportion Plot
 
 Generate stacked bar plots where the x-axis is one metadata grouping and the
 stacked segments are another metadata grouping. The y-axis can show proportions
@@ -159,3 +159,4 @@ if show_table.value:
         label=f"{selected_label} {stack_by.value} by {group_by.value}",
         source=stacked_df,
     )
+
