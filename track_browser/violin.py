@@ -98,6 +98,14 @@ def first_existing_group_key(adatas, selected_group, candidates):
     return None
 
 
+def sample_prefix_group_value(value):
+    value = str(value)
+    prefix = value.split("_", 1)[0]
+    if prefix.startswith("D") and prefix[1:].isdigit():
+        return prefix
+    return value
+
+
 selected_browser_group = coverages_group.value
 violin_group_candidates = {
     "copro_cluster": ["CoPro clusters", "sg_clusters", "sg_leiden_merged", "sg_leiden", "cluster"],
@@ -168,6 +176,9 @@ for obj in violin_objects:
         )
     except KeyError:
         df, value_source = None, None
+    if df is not None and not df.empty and group_key == "sample":
+        df = df.copy()
+        df["group"] = df["group"].map(sample_prefix_group_value)
     violin_frames.append({
         "label": obj["label"],
         "object_name": obj["object_name"],

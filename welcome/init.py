@@ -15,6 +15,7 @@ from typing import List
 
 from lplots import palettes, submit_widget_state
 from lplots.reactive import Signal
+from lplots.widgets.button import w_button
 from lplots.widgets.checkbox import w_checkbox
 from lplots.widgets.h5 import w_h5
 from lplots.widgets.igv import w_igv, IGVOptions
