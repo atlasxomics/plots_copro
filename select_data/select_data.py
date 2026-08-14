@@ -15,7 +15,9 @@ subdirectory with BEDPE linkage tracks.
 data_path = w_ldata_picker(
     label="atx_glue output folder",
     key="data_path",
-    appearance={"placeholder": "Select a glue_outs project folder"},
+    appearance={
+        "placeholder": "Select a copro_integration_analysis project folder"
+    },
 )
 
 if data_path.value is not None:
