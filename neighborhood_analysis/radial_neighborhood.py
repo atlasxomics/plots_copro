@@ -302,8 +302,11 @@ if radial_group_by.value is not None and radial_button.value:
                     }
                 )
 
-    for index, figure in enumerate(radial_figures):
-        w_plot(source=figure, key=f"radial_plot_{index}")
+    # Index the list directly so every widget has a distinct source expression.
+    # Passing each entry through one loop variable makes Latch treat every plot
+    # as the same live global and causes later subgroup plots to overwrite it.
+    for index in range(len(radial_figures)):
+        w_plot(source=radial_figures[index], key=f"radial_plot_{index}")
     radial_enrichment_data = pd.DataFrame(radial_rows)
     w_table(
         label="Radial neighborhood enrichment values",
