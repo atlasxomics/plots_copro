@@ -160,6 +160,8 @@ if data_path.value is not None:
 
     available_ge_features = list(adata_ge.var_names)
     available_genes = list(adata_rna.var_names)
+    neighborhood_filtered_groups = {}
+    neighborhood_all_results = {}
 
     coverages_dir = None
     peak2gene_dir = None
@@ -229,6 +231,8 @@ else:
     coverage_track_groups = {}
     available_genes = []
     available_ge_features = []
+    neighborhood_filtered_groups = {}
+    neighborhood_all_results = {}
     refresh_ge_h5_signal(False)
     refresh_rna_h5_signal(False)
     new_data_signal(True)

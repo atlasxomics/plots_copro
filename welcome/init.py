@@ -95,6 +95,8 @@ coverage_track_groups = {}
 available_genes = []
 available_ge_features = []
 DEFAULT_DATASET_OBSM_KEY = "spatial_offset"
+neighborhood_filtered_groups = {}
+neighborhood_all_results = {}
 
 
 # Functions ----------------------------------------------------------------
@@ -445,8 +447,16 @@ def prepare_adata_for_viewer(adata: anndata.AnnData) -> anndata.AnnData:
         if col in adata.obs.columns:
             adata.obs[col] = pd.to_numeric(adata.obs[col], errors="ignore")
 
+    # Squidpy matrices use the categorical order of their cluster annotation.
+    # Keep that dtype/order intact when loading workflow-precomputed results.
+    neighborhood_cluster_keys = {
+        key.removesuffix("_nhood_enrichment")
+        for key in adata.uns
+        if key.endswith("_nhood_enrichment")
+        and not key.endswith("_nhood_enrichment_by_group")
+    }
     for group in get_groupable_obs_keys(adata):
-        if adata.obs[group].dtype != object:
+        if adata.obs[group].dtype != object and group not in neighborhood_cluster_keys:
             adata.obs[group] = adata.obs[group].astype(str)
 
     if (
