@@ -132,12 +132,12 @@ def _modality_zscore_aligned(adata, genes, groupby, cluster_order):
     result = pd.DataFrame(index=cluster_order, columns=genes, dtype=float)
     if adata is None or not isinstance(adata, AnnData) or groupby not in adata.obs:
         return result
-    a = adata if adata.var_names.is_unique else adata[:, ~adata.var_names.duplicated()]
+    a = adata
     var_set = set(a.var_names.astype(str))
     present = [g for g in genes if g in var_set]
     if not present:
         return result
-    X = a[:, present].X
+    X = read_matrix_columns(a.X, feature_column_indices(a, present))
     X = X.toarray() if sp.issparse(X) else np.asarray(X)
     expr = pd.DataFrame(X, columns=present, index=a.obs_names.astype(str))
     grp = a.obs[groupby].astype(str).to_numpy()

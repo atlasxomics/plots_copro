@@ -21,7 +21,8 @@ def load_functions(path, namespace):
     names = {"feature_column_indices", "read_matrix_columns", "read_backed_h5ad",
              "_gene_list_zscore_heatmap", "compute_cluster_marker_heatmap_from_degs",
              "choose_heatmap_layer", "cluster_marker_sort_key", "_first_existing_column",
-             "cluster_marker_zscore_heatmap", "plotting_candidates"}
+             "cluster_marker_zscore_heatmap", "plotting_candidates",
+             "_modality_zscore_aligned"}
     functions = [node for node in ast.walk(tree)
                  if isinstance(node, ast.FunctionDef) and node.name in names]
     exec(compile(ast.Module(body=functions, type_ignores=[]), str(path), "exec"), namespace)
@@ -69,6 +70,19 @@ class BackedPlottingTests(unittest.TestCase):
             pd.testing.assert_frame_equal(actual, expected)
             self.assertEqual(missing, ["absent"])
             self.assertEqual(actual.index.tolist(), ["b", "a"])
+
+        load_functions("heatmap/cluster_marker_heatmap.py", self.ns)
+        fn = self.ns["_modality_zscore_aligned"]
+        genes = ["g4", "g1", "absent"]
+        clusters = ["b", "a", "missing_cluster"]
+        actual = fn(backed, genes, "cluster", clusters)
+        deduplicated = self.adata[:, ~self.adata.var_names.duplicated()].copy()
+        expected = fn(deduplicated, genes, "cluster", clusters)
+        pd.testing.assert_frame_equal(actual, expected)
+        self.assertEqual(actual.index.tolist(), clusters)
+        self.assertEqual(actual.columns.tolist(), genes)
+        self.assertTrue(actual["absent"].isna().all())
+        self.assertTrue(actual.loc["missing_cluster"].isna().all())
 
     def test_marker_heatmap_matches_memory(self):
         backed = self.write_backed(self.values)
