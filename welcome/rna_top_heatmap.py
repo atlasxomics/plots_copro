@@ -39,7 +39,7 @@ def _gene_list_zscore_heatmap(adata, genes, groupby, order_mode, user_order):
     import numpy as np
     import scipy.sparse as sp
 
-    a = adata if adata.var_names.is_unique else adata[:, ~adata.var_names.duplicated()]
+    a = adata
     var_set = set(a.var_names)
     seen, present, missing = set(), [], []
     for g in genes:
@@ -49,7 +49,7 @@ def _gene_list_zscore_heatmap(adata, genes, groupby, order_mode, user_order):
         (present if g in var_set else missing).append(g)
     if not present:
         raise ValueError("None of the requested genes were found: " + ", ".join(genes))
-    X = a[:, present].X
+    X = read_matrix_columns(a.X, feature_column_indices(a, present))
     X = X.toarray() if sp.issparse(X) else np.asarray(X)
     expr = pd.DataFrame(X, columns=present, index=a.obs_names.astype(str))
     grp = a.obs[groupby].astype(str).to_numpy()
@@ -137,10 +137,7 @@ try:
         )
     else:
         rna_hm_deg_df = cluster_marker_to_dataframe(adata_rna.uns[rna_hm_uns_key], rna_hm_uns_key)
-        rna_hm_adata = (
-            adata_rna if adata_rna.var_names.is_unique
-            else adata_rna[:, ~adata_rna.var_names.duplicated()]
-        )
+        rna_hm_adata = adata_rna
         rna_hm_df = compute_cluster_marker_heatmap_from_degs(
             rna_hm_adata,
             rna_hm_deg_df,

@@ -4,8 +4,11 @@ w_text_output(content="""
 <summary><i>Instructions</i></summary>
 
 Select an `atx_glue` output directory from Latch Data. The directory should
-contain reduced `rna_copro_sm.h5ad` and `atac_gs_copro_sm.h5ad` files, or the
-full `rna_copro.h5ad` and `atac_gs_copro.h5ad` fallback files. It can also
+contain gene-chunked `rna_copro_sm_ge.h5ad` and `atac_gs_copro_sm_ge.h5ad`
+files for fast plotting. Files from the rechunk workflow ending in
+`_gene_chunked.h5ad` are also supported. Reduced `rna_copro_sm.h5ad` and
+`atac_gs_copro_sm.h5ad`, then full `rna_copro.h5ad` and `atac_gs_copro.h5ad`,
+are used as fallbacks. Both modalities are opened in backed mode. It can also
 include a `coverages/` subdirectory with BigWig tracks and a `peak2gene/`
 subdirectory with BEDPE linkage tracks.
 
@@ -32,57 +35,31 @@ if data_path.value is not None:
     outputs_dir = data_path.value
     children = list(outputs_dir.iterdir())
 
-    ge_sm_matches = [f for f in children if f.name() == "atac_gs_copro_sm.h5ad"]
-    ge_full_matches = [f for f in children if f.name() == "atac_gs_copro.h5ad"]
-    rna_sm_matches = [f for f in children if f.name() == "rna_copro_sm.h5ad"]
-    rna_full_matches = [f for f in children if f.name() == "rna_copro.h5ad"]
+    def plotting_candidates(stem):
+        names = (
+            f"{stem}_sm_ge", f"{stem}_sm_gene_chunked",
+            f"{stem}_ge", f"{stem}_gene_chunked", f"{stem}_sm", stem,
+        )
+        candidates = []
+        for name in names:
+            matches = [f for f in children if f.name() == f"{name}.h5ad"]
+            if len(matches) > 1:
+                raise ValueError(f"Found multiple files named `{name}.h5ad`.")
+            if matches:
+                candidates.append((name, matches[0]))
+        if not candidates:
+            expected = ", ".join(f"`{name}.h5ad`" for name in names)
+            raise ValueError(f"No AnnData file found. Expected one of: {expected}.")
+        return candidates
 
-    if (
-        len(ge_sm_matches) > 1
-        or len(ge_full_matches) > 1
-        or len(rna_sm_matches) > 1
-        or len(rna_full_matches) > 1
-    ):
-        w_text_output(
-            content=(
-                "Found multiple AnnData files with the same expected name. "
-                "Expected at most one reduced and one full file per modality."
-            ),
-            appearance={"message_box": "danger"},
-        )
-        submit_widget_state()
-        exit()
-    if not ge_sm_matches and not ge_full_matches:
-        w_text_output(
-            content=(
-                "Could not find an ATAC AnnData file in the selected folder. "
-                "Expected `atac_gs_copro_sm.h5ad` or `atac_gs_copro.h5ad`."
-            ),
-            appearance={"message_box": "danger"},
-        )
-        submit_widget_state()
-        exit()
-    if not rna_sm_matches and not rna_full_matches:
-        w_text_output(
-            content=(
-                "Could not find an RNA AnnData file in the selected folder. "
-                "Expected `rna_copro_sm.h5ad` or `rna_copro.h5ad`."
-            ),
-            appearance={"message_box": "danger"},
-        )
+    try:
+        ge_candidates = plotting_candidates("atac_gs_copro")
+        rna_candidates = plotting_candidates("rna_copro")
+    except ValueError as e:
+        w_text_output(content=str(e), appearance={"message_box": "danger"})
         submit_widget_state()
         exit()
 
-    ge_candidates = []
-    if ge_sm_matches:
-        ge_candidates.append(("atac_gs_copro_sm", ge_sm_matches[0]))
-    if ge_full_matches:
-        ge_candidates.append(("atac_gs_copro", ge_full_matches[0]))
-    rna_candidates = []
-    if rna_sm_matches:
-        rna_candidates.append(("rna_copro_sm", rna_sm_matches[0]))
-    if rna_full_matches:
-        rna_candidates.append(("rna_copro", rna_full_matches[0]))
     ge_object_name = ge_candidates[0][0]
     ge_path = ge_candidates[0][1]
     rna_object_name = rna_candidates[0][0]
@@ -97,22 +74,25 @@ if data_path.value is not None:
     )
     submit_widget_state()
 
+    release_loaded_adata()
+    adata_ge = None
+    adata_rna = None
+
     ge_load_errors = []
     adata_ge = None
-    for candidate_name, candidate_path in ge_candidates:
+    for candidate_index, (candidate_name, candidate_path) in enumerate(ge_candidates):
         try:
-            candidate_path.download(Path(candidate_path.name()), cache=True)
-            adata_ge = sc.read_h5ad(Path(candidate_path.name()))
+            adata_ge = read_backed_h5ad(candidate_path)
             ge_object_name = candidate_name
             ge_path = candidate_path
             break
         except Exception as e:
             ge_load_errors.append(f"`{candidate_name}.h5ad`: {e}")
-            if candidate_name == "atac_gs_copro_sm" and len(ge_candidates) > 1:
+            if candidate_index + 1 < len(ge_candidates):
                 w_text_output(
                     content=(
-                        f"Could not load `atac_gs_copro_sm.h5ad`; falling back to "
-                        f"`atac_gs_copro.h5ad`. Reason: {e}"
+                        f"Could not load `{candidate_name}.h5ad`; falling back to "
+                        f"`{ge_candidates[candidate_index + 1][0]}.h5ad`. Reason: {e}"
                     ),
                     appearance={"message_box": "warning"},
                 )
@@ -128,26 +108,26 @@ if data_path.value is not None:
 
     rna_load_errors = []
     adata_rna = None
-    for candidate_name, candidate_path in rna_candidates:
+    for candidate_index, (candidate_name, candidate_path) in enumerate(rna_candidates):
         try:
-            candidate_path.download(Path(candidate_path.name()), cache=True)
-            adata_rna = sc.read_h5ad(Path(candidate_path.name()))
+            adata_rna = read_backed_h5ad(candidate_path)
             rna_object_name = candidate_name
             rna_path = candidate_path
             break
         except Exception as e:
             rna_load_errors.append(f"`{candidate_name}.h5ad`: {e}")
-            if candidate_name == "rna_copro_sm" and len(rna_candidates) > 1:
+            if candidate_index + 1 < len(rna_candidates):
                 w_text_output(
                     content=(
-                        f"Could not load `rna_copro_sm.h5ad`; falling back to "
-                        f"`rna_copro.h5ad`. Reason: {e}"
+                        f"Could not load `{candidate_name}.h5ad`; falling back to "
+                        f"`{rna_candidates[candidate_index + 1][0]}.h5ad`. Reason: {e}"
                     ),
                     appearance={"message_box": "warning"},
                 )
                 submit_widget_state()
 
     if adata_rna is None:
+        release_loaded_adata()
         w_text_output(
             content="Error loading RNA AnnData files: " + " | ".join(rna_load_errors),
             appearance={"message_box": "danger"},
@@ -218,6 +198,7 @@ if data_path.value is not None:
     refresh_rna_h5_signal(False)
     new_data_signal(True)
 else:
+    release_loaded_adata()
     adata_ge = None
     adata_rna = None
     ge_path = None

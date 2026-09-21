@@ -101,6 +101,31 @@ neighborhood_all_results = {}
 
 # Functions ----------------------------------------------------------------
 
+def read_backed_h5ad(lpath):
+    """Retry a damaged cached download once before falling back to another file."""
+    local = Path(lpath.name())
+    lpath.download(local, cache=True)
+    try:
+        return sc.read_h5ad(local, backed="r+")
+    except Exception:
+        local.unlink(missing_ok=True)
+        lpath.download(local, cache=False)
+        return sc.read_h5ad(local, backed="r+")
+
+
+def release_loaded_adata():
+    # Plot cells retain aliases and views. Close them before replacing downloads.
+    import gc
+
+    for name, value in list(globals().items()):
+        if isinstance(value, AnnData) and value.isbacked:
+            value.file.close()
+            globals()[name] = None
+    for name in ("count_objects", "violin_objects"):
+        globals().pop(name, None)
+    gc.collect()
+
+
 def empty_notebook_palettes():
     return {"categorical": [], "continuous": []}
 
@@ -508,6 +533,25 @@ def get_counts_matrix_for_feature(adata: anndata.AnnData, feature: str):
             return adata.raw.X, "raw", raw_var_names
 
     return adata.X, "X", var_names
+
+
+def feature_column_indices(adata, genes):
+    # Match the first occurrence without creating a backed AnnData view.
+    names = pd.Index(adata.var_names)
+    first = ~names.duplicated()
+    positions = np.flatnonzero(first)
+    if not len(positions):
+        return np.full(len(genes), -1, dtype=int)
+    indices = names[first].get_indexer(genes)
+    return np.where(indices >= 0, positions[np.maximum(indices, 0)], -1)
+
+
+def read_matrix_columns(matrix, indices):
+    """Read only requested columns, preserving order for dense HDF5 and sparse X."""
+    # h5py fancy indexing requires increasing, unique indices.
+    columns, inverse = np.unique(np.asarray(indices, dtype=int), return_inverse=True)
+    selected = matrix[:, columns]
+    return selected[:, inverse]
 
 
 def matrix_column_to_array(matrix, index: int) -> np.ndarray:
@@ -959,7 +1003,7 @@ def compute_cluster_marker_heatmap_from_degs(
     if len(all_top_genes) == 0:
         raise ValueError("No marker genes are available for the selected filters.")
 
-    gene_idx = adata.var_names.get_indexer(all_top_genes)
+    gene_idx = feature_column_indices(adata, all_top_genes)
     valid = gene_idx >= 0
     genes = [gene for gene, keep in zip(all_top_genes, valid) if keep]
     gene_idx = gene_idx[valid]
@@ -970,13 +1014,15 @@ def compute_cluster_marker_heatmap_from_degs(
 
     obs_clusters = adata.obs[groupby].astype(str)
     X = adata.layers[layer] if layer is not None else adata.X
+    # Slice genes before grouping rows so backed reads never load all features.
+    X = read_matrix_columns(X, gene_idx)
     mean_expr = pd.DataFrame(index=clusters, columns=genes, dtype=float)
     for cluster in clusters:
         mask = obs_clusters == cluster
         if int(mask.sum()) == 0:
             mean_expr.loc[cluster] = np.nan
             continue
-        sub = X[mask.to_numpy(), :][:, gene_idx]
+        sub = X[mask.to_numpy(), :]
         if sp.issparse(sub):
             sub = sub.toarray()
         mean_expr.loc[cluster] = np.asarray(sub).mean(axis=0)
