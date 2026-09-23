@@ -106,7 +106,12 @@ def sample_prefix_group_value(value):
     return value
 
 
-selected_browser_group = coverages_group.value
+# The Track Browser cell defines `coverages_group`, but it exits early for
+# datasets without `coverages/` tracks. The violin only needs a grouping key,
+# so fall back to the CoPro clustering when the browser selector is absent.
+selected_browser_group = (
+    coverages_group.value if "coverages_group" in globals() else "copro_cluster"
+)
 violin_group_candidates = {
     "copro_cluster": ["CoPro clusters", "sg_clusters", "sg_leiden_merged", "sg_leiden", "cluster"],
     "atac_cluster": ["ATAC_cluster", "cluster"],
